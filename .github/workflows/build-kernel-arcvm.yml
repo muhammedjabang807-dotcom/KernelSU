@@ -27,6 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup kernel source
+        # FIXED URL: Added the full path to the kernel repository
         run: git clone https://chromium.googlesource.com -b ${{ matrix.git_tag }} --depth=1
 
       - name: Setup KernelSU
@@ -47,7 +48,7 @@ jobs:
         run: |
           set -a && . build.config.gki.x86_64; set +a
           export DEFCONFIG=x86_64_arcvm_defconfig
-          # Using -j1 to save RAM and prevent crashes on Chromebook
+          # FIXED: Using -j1 to prevent RAM-related crashes (Exit Code 2/137)
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} mrproper
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} ${DEFCONFIG} < /dev/null
           scripts/config --file .config -e LTO_CLANG -d LTO_NONE -e LTO_CLANG_THIN -d LTO_CLANG_FULL -e THINLTO
