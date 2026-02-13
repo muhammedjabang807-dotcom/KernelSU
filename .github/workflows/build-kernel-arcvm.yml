@@ -27,8 +27,12 @@ jobs:
           fetch-depth: 0
 
       - name: Setup kernel source
-        # FIXED URL: Added full repository path required by chromium.googlesource.com
-        run: git clone https://chromium.googlesource.com -b ${{ matrix.git_tag }} --depth=1
+        # FIXED: Using wget to bypass "Repository not found" errors on ChromeOS
+        run: |
+          wget https://chromium.googlesource.com{{ matrix.git_tag }}.tar.gz -O kernel.tar.gz
+          mkdir -p kernel
+          tar -xzf kernel.tar.gz -C kernel
+          rm kernel.tar.gz
 
       - name: Setup KernelSU
         working-directory: kernel
@@ -48,7 +52,7 @@ jobs:
         run: |
           set -a && . build.config.gki.x86_64; set +a
           export DEFCONFIG=x86_64_arcvm_defconfig
-          # FIXED: Using -j1 and system tools for stability on Chromebook (prevents Code 2/137 crashes)
+          # FIXED: Using -j1 for stability on Chromebook RAM limits
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} mrproper
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} ${DEFCONFIG} < /dev/null
           scripts/config --file .config -e LTO_CLANG -d LTO_NONE -e LTO_CLANG_THIN -d LTO_CLANG_FULL -e THINLTO
