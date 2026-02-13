@@ -29,7 +29,6 @@ jobs:
       - name: Setup kernel source
         # FIXED URL: Added the full path to the kernel repository
         run: git clone https://chromium.googlesource.com -b ${{ matrix.git_tag }} --depth=1
-
       - name: Setup KernelSU
         working-directory: kernel
         run: |
