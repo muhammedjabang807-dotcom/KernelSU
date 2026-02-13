@@ -6,6 +6,13 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        arch: [x86_64]
+        version: ["5.10.178"]
+        include:
+          - arch: x86_64
+            git_tag: chromeos-5.10-arcvm
     name: Build ChromeOS ARCVM kernel
     runs-on: self-hosted
     env:
@@ -20,10 +27,8 @@ jobs:
           fetch-depth: 0
 
       - name: Setup kernel source
-        # FIXED: Using CURL to stream directly into the folder to save space and prevent URL errors
-        run: |
-          mkdir -p kernel
-          curl -L "https://chromium.googlesource.com" | tar -xzC kernel
+        # FIXED: Added the full repository path
+        run: git clone https://chromium.googlesource.com/chromiumos/third_party/kernel.git -b ${{ matrix.git_tag }} --depth=1
 
       - name: Setup KernelSU
         working-directory: kernel
@@ -35,22 +40,24 @@ jobs:
           grep -q "kernelsu" $DRIVER_MAKEFILE || echo "obj-y += kernelsu/" >> $DRIVER_MAKEFILE
           cd $KERNEL_ROOT && git apply $GITHUB_WORKSPACE/KernelSU/.github/patches/5.10/*.patch
           sed -i 's/-dirty//g' $KERNEL_ROOT/scripts/setlocalversion
-          echo "kernelsu_version=10200" >> $GITHUB_ENV
+          VERSION=$(($(git rev-list --count HEAD) + 10200))
+          echo "kernelsu_version=$VERSION" >> $GITHUB_ENV
 
       - name: Build Kernel
         working-directory: kernel
         run: |
           set -a && . build.config.gki.x86_64; set +a
           export DEFCONFIG=x86_64_arcvm_defconfig
-          # Safety: Clean old mess and use -j1 to prevent Chromebook RAM crashes
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} mrproper
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} ${DEFCONFIG} < /dev/null
-          scripts/config --file .config -e LTO_CLANG -d LTO_NONE -e LTO_CLANG_THIN -d LTO_CLANG_FULL -e THINLTO
+          # FIXED: Disabling LTO to prevent Error 137 (Killed) on Chromebook RAM
+          scripts/config --file .config -d LTO_CLANG -e LTO_NONE -d LTO_CLANG_THIN -d LTO_CLANG_FULL -d THINLTO
+          # FIXED: Using -j1 for stability
           make CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=${PWD} -j1 bzImage modules
           echo "file_path=${PWD}/arch/x86/boot/bzImage" >> $GITHUB_ENV
 
-      - name: Upload kernel
+      - name: Upload kernel-ARCVM-${{ matrix.arch }}-${{ matrix.version }}
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-ARCVM-x86_64
+          name: kernel-ARCVM-${{ matrix.arch }}-${{ matrix.version }}
           path: "${{ env.file_path }}"
